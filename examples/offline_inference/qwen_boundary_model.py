@@ -140,7 +140,8 @@ def generate_prompts(
     )
 
     texts = [
-        "１２月３１日，中共中央总书记、国家主席江泽民发表新年讲话。新华社记者兰红光摄，这是一九九八年新年讲话的现场记录。",
+        "１２月３１日，中共中央总书记、国家主席江泽民发表新年讲话。",
+        "新华社记者兰红光摄，这是一九九八年新年讲话的现场记录。",
     ]
 
     prompts: List[Tuple[str, TokensPrompt, List[List[int]], List[int]]] = []
