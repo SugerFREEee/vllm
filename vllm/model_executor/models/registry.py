@@ -134,6 +134,8 @@ _TEXT_GENERATION_MODELS = {
     "Qwen3ForCausalLM": ("qwen3", "Qwen3ForCausalLM"),
     "Qwen3MoeForCausalLM": ("qwen3_moe", "Qwen3MoeForCausalLM"),
     "Qwen3ForGuardModel": ("qwen3_guard", "Qwen3ForGuardModel"),
+    "Qwen3BoundaryForStreaming": ("qwen3_boundary",
+                                   "Qwen3BoundaryForStreaming"),
     "RWForCausalLM": ("falcon", "FalconForCausalLM"),
     "SeedOssForCausalLM": ("seed_oss", "SeedOssForCausalLM"),
     "Step3TextForCausalLM": ("step3_text", "Step3TextForCausalLM"),
@@ -179,6 +181,8 @@ _EMBEDDING_MODELS = {
     "Qwen2ForRewardModel": ("qwen2_rm", "Qwen2ForRewardModel"),
     "Qwen2ForProcessRewardModel": ("qwen2_rm", "Qwen2ForProcessRewardModel"),
     "Qwen3ForGuardModel": ("qwen3_guard", "Qwen3ForGuardModel"),
+    "Qwen3BoundaryForStreaming": ("qwen3_boundary",
+                                   "Qwen3BoundaryForStreaming"),
     "RobertaForMaskedLM": ("roberta", "RobertaEmbeddingModel"),
     "RobertaModel": ("roberta", "RobertaEmbeddingModel"),
     "TeleChat2ForCausalLM": ("telechat2", "TeleChat2ForCausalLM"),
@@ -658,7 +662,9 @@ class _ModelRegistry:
                 if model_info is not None:
                     return (model_info, arch)
 
-        for arch in architectures:
+        prioritized_archs = self._prioritize_architectures(
+            architectures, model_config)
+        for arch in prioritized_archs:
             normalized_arch = self._normalize_arch(arch, model_config)
             model_info = self._try_inspect_model_cls(normalized_arch)
             if model_info is not None:
@@ -675,6 +681,37 @@ class _ModelRegistry:
                     return (model_info, arch)
 
         return self._raise_for_unsupported(architectures)
+
+    def _prioritize_architectures(
+        self,
+        architectures: Union[str, list[str]],
+        model_config: ModelConfig,
+    ) -> list[str]:
+        if isinstance(architectures, str):
+            arch_list = [architectures]
+        else:
+            arch_list = list(architectures)
+
+        if not arch_list:
+            return arch_list
+
+        runner_type = getattr(model_config, "runner_type", None)
+        if runner_type is None:
+            runner_type = getattr(model_config, "runner", None)
+        if runner_type != "pooling":
+            return arch_list
+
+        pooling_archs: list[str] = []
+        remaining_archs: list[str] = []
+        for arch in arch_list:
+            normalized_arch = self._normalize_arch(arch, model_config)
+            model_cls = self._try_load_model_cls(normalized_arch)
+            if model_cls is not None and getattr(model_cls, "is_pooling_model",
+                                                 False):
+                pooling_archs.append(arch)
+            else:
+                remaining_archs.append(arch)
+        return pooling_archs + remaining_archs
 
     def resolve_model_cls(
         self,
@@ -711,7 +748,9 @@ class _ModelRegistry:
                 if model_cls is not None:
                     return (model_cls, arch)
 
-        for arch in architectures:
+        prioritized_archs = self._prioritize_architectures(
+            architectures, model_config)
+        for arch in prioritized_archs:
             normalized_arch = self._normalize_arch(arch, model_config)
             model_cls = self._try_load_model_cls(normalized_arch)
             if model_cls is not None:

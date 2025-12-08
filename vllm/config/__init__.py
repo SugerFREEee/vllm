@@ -3703,10 +3703,11 @@ class VllmConfig:
             if self.cache_config is not None:
                 self.cache_config.enable_prefix_caching = False
 
-        if self.model_config.architecture == "Qwen3ForGuardModel":
+        if self.model_config.architecture in (
+                "Qwen3ForGuardModel", "Qwen3BoundaryForStreaming"):
             logger.info(
-                "Enable qwen3_guard logits computation, disable prefix caching."
-            )
+                "Enable Qwen3 guard/boundary logits computation, disable "
+                "prefix caching.")
             self.scheduler_config.long_prefill_token_threshold = 0
             if self.cache_config is not None:
                 self.cache_config.enable_prefix_caching = False

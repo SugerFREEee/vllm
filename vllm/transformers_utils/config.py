@@ -13,8 +13,8 @@ import huggingface_hub
 from huggingface_hub import get_safetensors_metadata, hf_hub_download
 from huggingface_hub import list_repo_files as hf_list_repo_files
 from huggingface_hub import try_to_load_from_cache
-from huggingface_hub.utils import (EntryNotFoundError, HfHubHTTPError,
-                                   LocalEntryNotFoundError,
+from huggingface_hub.utils import (EntryNotFoundError, HFValidationError,
+                                   HfHubHTTPError, LocalEntryNotFoundError,
                                    RepositoryNotFoundError,
                                    RevisionNotFoundError)
 from transformers import GenerationConfig, PretrainedConfig
@@ -576,9 +576,16 @@ def get_hf_file_to_dict(file_name: str,
                                    revision=revision)
 
     if file_path is None:
+        if Path(model).exists():
+            logger.debug("Local checkpoint %s missing %s; skipping hub lookup",
+                         model, file_name)
+            return None
         try:
             hf_hub_file = hf_hub_download(model, file_name, revision=revision)
         except huggingface_hub.errors.OfflineModeIsEnabled:
+            return None
+        except HFValidationError as e:
+            logger.debug("Invalid Hugging Face repo id '%s': %s", model, e)
             return None
         except (RepositoryNotFoundError, RevisionNotFoundError,
                 EntryNotFoundError, LocalEntryNotFoundError) as e:
@@ -951,12 +958,32 @@ def get_hf_file_bytes(file_name: str,
     file_path = try_get_local_file(model=model,
                                    file_name=file_name,
                                    revision=revision)
-
     if file_path is None:
-        hf_hub_file = hf_hub_download(model,
-                                      file_name,
-                                      revision=revision,
-                                      token=_get_hf_token())
+        if Path(model).exists():
+            logger.debug("Local checkpoint %s missing %s; skipping hub lookup",
+                         model, file_name)
+            return None
+        try:
+            hf_hub_file = hf_hub_download(model,
+                                          file_name,
+                                          revision=revision,
+                                          token=_get_hf_token())
+        except HFValidationError as e:
+            logger.debug("Invalid Hugging Face repo id '%s': %s", model, e)
+            return None
+        except (RepositoryNotFoundError, RevisionNotFoundError,
+                EntryNotFoundError, LocalEntryNotFoundError) as e:
+            logger.debug("File or repository not found in hf_hub_download", e)
+            return None
+        except HfHubHTTPError as e:
+            logger.warning(
+                "Cannot connect to Hugging Face Hub. Skipping file "
+                "download for '%s':",
+                file_name,
+                exc_info=e)
+            return None
+        except huggingface_hub.errors.OfflineModeIsEnabled:
+            return None
         file_path = Path(hf_hub_file)
 
     if file_path is not None and file_path.is_file():
