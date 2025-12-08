@@ -309,6 +309,15 @@ class Scheduler(SchedulerInterface):
             token_budget -= num_new_tokens
             req_index += 1
 
+            # Log scheduling info for running requests
+            logger.info(
+                f"[SCHED-RUN] req={request.request_id[:8]} "
+                f"prompt_len={len(request.prompt_token_ids)} "
+                f"num_prompt={request.num_prompt_tokens} "
+                f"computed={request.num_computed_tokens} "
+                f"schedule(num_new_tokens)={num_new_tokens}"
+            )
+
             # Speculative decode related.
             if request.spec_token_ids:
                 num_scheduled_spec_tokens = (num_new_tokens +
@@ -515,6 +524,17 @@ class Scheduler(SchedulerInterface):
                 if self.log_stats:
                     request.record_event(EngineCoreEventType.SCHEDULED,
                                          scheduled_timestamp)
+
+                # Log scheduling info for new/resumed requests
+                req_type = "NEW" if request.status == RequestStatus.WAITING else "RESUME"
+                logger.info(
+                    f"[SCHED-{req_type}] req={request.request_id[:8]} "
+                    f"prompt_len={len(request.prompt_token_ids)} "
+                    f"num_prompt={request.num_prompt_tokens} "
+                    f"computed={num_computed_tokens} "
+                    f"schedule={num_new_tokens}"
+                )
+
                 if request.status == RequestStatus.WAITING:
                     scheduled_new_reqs.append(request)
                 elif request.status == RequestStatus.PREEMPTED:
@@ -698,6 +718,10 @@ class Scheduler(SchedulerInterface):
                 # When using a KVConnector, we add a placeholder to avoid index
                 # out of bounds errors. TODO: Remove this once the KVConnector
                 # is updated to handle token IDs properly.
+                new_token_ids.append([])
+            else:
+                # For other cases, add empty list to maintain list alignment.
+                # The model runner will use cached tokens instead.
                 new_token_ids.append([])
             new_block_ids.append(
                 req_to_new_blocks[req_id].get_block_ids(allow_none=True))
