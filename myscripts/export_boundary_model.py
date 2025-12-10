@@ -70,6 +70,10 @@ def update_config(
         "head_file": head_file.name,
     }
     config.setdefault("architectures", [])
+    # VLLM 只需要 boundary 架构，去掉原有的 CausalLM
+    config["architectures"] = [
+        arch for arch in config["architectures"] if arch != "Qwen3ForCausalLM"
+    ]
     if "Qwen3BoundaryForStreaming" not in config["architectures"]:
         config["architectures"].append("Qwen3BoundaryForStreaming")
     with config_path.open("w", encoding="utf-8") as f:

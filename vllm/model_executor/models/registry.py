@@ -662,9 +662,7 @@ class _ModelRegistry:
                 if model_info is not None:
                     return (model_info, arch)
 
-        prioritized_archs = self._prioritize_architectures(
-            architectures, model_config)
-        for arch in prioritized_archs:
+        for arch in architectures:
             normalized_arch = self._normalize_arch(arch, model_config)
             model_info = self._try_inspect_model_cls(normalized_arch)
             if model_info is not None:
@@ -681,37 +679,6 @@ class _ModelRegistry:
                     return (model_info, arch)
 
         return self._raise_for_unsupported(architectures)
-
-    def _prioritize_architectures(
-        self,
-        architectures: Union[str, list[str]],
-        model_config: ModelConfig,
-    ) -> list[str]:
-        if isinstance(architectures, str):
-            arch_list = [architectures]
-        else:
-            arch_list = list(architectures)
-
-        if not arch_list:
-            return arch_list
-
-        runner_type = getattr(model_config, "runner_type", None)
-        if runner_type is None:
-            runner_type = getattr(model_config, "runner", None)
-        if runner_type != "pooling":
-            return arch_list
-
-        pooling_archs: list[str] = []
-        remaining_archs: list[str] = []
-        for arch in arch_list:
-            normalized_arch = self._normalize_arch(arch, model_config)
-            model_cls = self._try_load_model_cls(normalized_arch)
-            if model_cls is not None and getattr(model_cls, "is_pooling_model",
-                                                 False):
-                pooling_archs.append(arch)
-            else:
-                remaining_archs.append(arch)
-        return pooling_archs + remaining_archs
 
     def resolve_model_cls(
         self,
@@ -748,9 +715,7 @@ class _ModelRegistry:
                 if model_cls is not None:
                     return (model_cls, arch)
 
-        prioritized_archs = self._prioritize_architectures(
-            architectures, model_config)
-        for arch in prioritized_archs:
+        for arch in architectures:
             normalized_arch = self._normalize_arch(arch, model_config)
             model_cls = self._try_load_model_cls(normalized_arch)
             if model_cls is not None:
